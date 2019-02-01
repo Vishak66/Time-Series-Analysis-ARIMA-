@@ -1,0 +1,195 @@
+---
+output:
+  word_document: default
+  html_document: default
+---
+```{r}
+library(astsa)
+a<-read.csv("E:/MS-ISE/2nd Semester/ISE 5550 Time Series Analysis/Assignments/Project/C02_Project.csv")
+colnames(a)<-c("Month","Co2")
+a<-as.data.frame(a)
+a<-a$Co2
+a.ts<-ts(a, start=c(1965,1), end=c(1980,12),frequency=12)
+a.ts
+plot(a.ts, ylab="CO2(ppm)")
+monthplot(a.ts, ylab="CO2(ppm)")
+
+## Plotting the data
+plot(a.ts, xlab="Time (monthly data)", ylab="CO2(ppm)")
+acf(a.ts, main="",lag.max = 180)
+
+## Explore a linear regression model for the trend
+mod1 <- lm(a.ts~time(a.ts))
+plot(a.ts, xlab="Time (monthly data)", ylab="CO2(ppm)")
+abline(reg=mod1, col="red", lty=2)
+plot(ts(resid(mod1), start=1965, end=c(1980,12), frequency=12), ylab="Detrended Data")
+abline(h=0, col="blue", lty=3)
+
+# Explore seasonal pattern
+monthplot(ts(resid(mod1), start=1965, end=c(1980,12), frequency=12), ylab="CO2(ppm)")
+
+# Fit a joint model trend + Seasonal
+Month <- factor(rep(month.abb, length.out=length(a.ts)), levels=month.abb)
+Month
+Time = time(a.ts)
+mod2 = lm(a.ts~ 0+Month+Time) #Seasonal means
+summary(mod2)
+plot(a.ts, xlab="Time (monthly data)", ylab="CO2(ppm)")
+lines(c(time(a.ts)), c(fitted(mod2)), col="red", lwd=1, lty=2)
+
+z = ts(resid(mod2), start=1965, end=c(1980,12), frequency=12)
+plot(z, ylab="Residuals")
+abline(h=0, lty=3)
+
+acf(z, main="", ylim=c(-1,1),lag.max=108)
+pacf(z, main="", ylim=c(-1,1),lag.max=60)
+
+
+#Exploring an ARMA(1,0)
+mod3 = sarima(z, 1,0,0, no.constant=T)
+mod3
+
+#Exploring an ARMA(2,0) 
+mod7 = sarima(z, 2,0,0, no.constant=T)
+mod7
+
+#Exploring an ARMA(3,0)
+mod5 = sarima(z, 3,0,0, no.constant=T)
+mod5
+
+#Exploring an ARMA(0,1)    #Residual plots are not white noise
+mod6 = sarima(z, 0,0,1, no.constant=T)
+mod6
+
+#Exploring an ARMA(1,1)   
+mod4 = sarima(z, 1,0,1, no.constant=T)
+mod4
+mod4a=arima(z, order=c(1,0,1), include.mean=F)
+mod4a
+
+#Exploring an ARMA(2,1)
+mod8 = sarima(z, 2,0,1, no.constant=T)
+mod8
+
+#Exploring an ARMA(2,2)
+mod8 = sarima(z, 2,0,2, no.constant=T)
+mod8
+
+#Selecting ARMA(1,1) model#
+
+## For demonstration purposes, simulate from the fitted model
+z.sim = arima.sim(model=list(ar=coef(mod4$fit)[1], ma=coef(mod4$fit)[2]), n=142, sd=sqrt(mod4$fit$sigma2))
+
+# Plot the real (detrended/deseasonalized) data and the simulated data...over and over
+par(mar=c(5,2,1,1), mfrow=c(2,1))
+plot(z, ylab="Residuals", col="blue", ylim=c(-1.5,1.5))
+abline(h=0, lty=3)
+plot(z.sim, ylab="", ylim=c(-1.5,1.5))
+abline(h=0, lty=3)
+
+
+
+# Forecast out to July 1985 
+mod4.pr = predict(mod4a, n.ahead=55)
+
+zhat = mod4.pr$pr
+pi.z.upper = mod4.pr$pr + 2*mod4.pr$se
+pi.z.lower = mod4.pr$pr - 2*mod4.pr$se
+
+
+par(mfrow=c(3,1), mar=c(4,4,4,2), cex=0.8)
+
+plot(z, ylab="Residuals", xlim=c(1965, 1985), main=expression("Forecasting "~z[t]))
+points(zhat, col="red")
+lines(pi.z.upper, lty=2, col="blue")
+lines(pi.z.lower, lty=2, col="blue")
+
+# Add back in trend and seasonality
+# Need Jan 1981 through July 1985
+newTime = seq(from=1981, to=1985+6/12, by=1/12)
+newMonths = factor(rep(1:12, 5))
+levels(newMonths) = c("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+newMonths = newMonths[-c(56:60)]
+newMonths
+
+# This predicts the trend + seasonality in the future
+trend = predict(mod2, newdata=data.frame(Time=newTime, Month=newMonths))
+
+yhat = trend + zhat
+pi.y.lower = trend + pi.z.lower
+pi.y.upper = trend + pi.z.upper
+
+yhat
+
+par(mfrow=c(1,1))
+plot(a.ts, xlab="Time (monthly data)", ylab="CO2(ppm)", xlim=c(1975, 1986), ylim=c(320,355), main=expression("Forecasting "~y[t]))
+points(yhat, col="red")
+lines(pi.y.upper, lty=2, col="blue")
+lines(pi.y.lower, lty=2, col="blue")
+
+#-------------------------------------------------------------------------------------------------------------------#
+
+# SARIMA models
+
+library(astsa)
+a<-read.csv("E:/MS-ISE/2nd Semester/ISE 5550 Time Series Analysis/Assignments/Project/C02_Project.csv")
+colnames(a)<-c("Month","Co2")
+a<-as.data.frame(a)
+a<-a$Co2
+a.ts<-ts(a, start=c(1965,1), end=c(1980,12),frequency=12)
+a.ts
+plot(a.ts)
+
+
+par(mfrow=c(3,1), mar=c(5,4,1,1))
+
+plot(a.ts, xlab="Time (monthly data)", ylab="CO2(ppm)")
+monthplot(a.ts, ylab="CO2(ppm)")
+acf(a.ts, lag.max=108, main="")
+
+par(mfrow=c(2,1), mar=c(5,4,1,1))
+plot(diff(a.ts, lag=12), ylab="CO2(ppm)")
+acf(diff(a.ts, lag=12), lag.max=108, main="")
+
+
+par(mfrow=c(3,1), mar=c(5,4,1,1))
+plot(diff(diff(a.ts, lag=12)), ylab="CO2(ppm)")
+abline(h=0, lty=3)
+acf(diff(diff(a.ts, lag=12)), lag.max=60, main="", ylim=c(-.5,1))
+abline(v=1, lty=3)
+abline(v=2, lty=3)
+abline(v=3, lty=3)
+abline(v=4, lty=3)
+abline(v=5, lty=3)
+pacf(diff(diff(a.ts, lag=12)), lag.max=60, main="", ylim=c(-.5,1))
+abline(v=1, lty=3)
+abline(v=2, lty=3)
+abline(v=3, lty=3)
+abline(v=4, lty=3)
+abline(v=5, lty=3)
+
+sarima(a.ts, p=1, d=1, q=1, P=1, D=1, Q=0, S=12) #AIC=135.73
+
+sarima(a.ts, p=1, d=1, q=1, P=1, D=1, Q=1, S=12) #AIC=118.97
+
+sarima(a.ts, p=2, d=1, q=1, P=1, D=1, Q=1, S=12) #AIC=120.51
+
+sarima(a.ts, p=1, d=1, q=2, P=1, D=1, Q=1, S=12) #AIC=120.69
+
+sarima(a.ts, p=2, d=1, q=2, P=1, D=1, Q=1, S=12) #AIC=122.07
+
+par(mfrow=c(1,1))
+sarima.for(a.ts, p=1, d=1, q=1, P=1, D=1, Q=1, S=12, n.ahead=55)
+
+
+
+
+
+
+
+
+
+
+
+```
+
